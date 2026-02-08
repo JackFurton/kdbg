@@ -110,6 +110,26 @@ enum Commands {
         #[arg(short, long, default_value = "default")]
         namespace: String,
     },
+    
+    /// Restart pod (delete and let it recreate)
+    Restart {
+        /// Pod name (or partial match)
+        pod: String,
+        
+        /// Namespace
+        #[arg(short, long)]
+        namespace: Option<String>,
+    },
+    
+    /// Show pod events
+    Events {
+        /// Pod name (or partial match)
+        pod: String,
+        
+        /// Namespace
+        #[arg(short, long)]
+        namespace: Option<String>,
+    },
 }
 
 fn main() -> Result<()> {
@@ -126,6 +146,8 @@ fn main() -> Result<()> {
         }
         Commands::Shell { pod, namespace } => shell_pod(&pod, namespace)?,
         Commands::Debug { image, namespace } => debug_pod(&image, &namespace)?,
+        Commands::Restart { pod, namespace } => restart_pod(&pod, namespace)?,
+        Commands::Events { pod, namespace } => show_events(&pod, namespace)?,
     }
     
     Ok(())
@@ -447,6 +469,51 @@ fn debug_pod(image: &str, namespace: &str) -> Result<()> {
     
     if !output.success() {
         anyhow::bail!("Failed to create debug pod");
+    }
+    
+    Ok(())
+}
+
+fn restart_pod(pod_pattern: &str, namespace: Option<String>) -> Result<()> {
+    let (pod_name, ns) = find_pod(pod_pattern, namespace)?;
+    
+    println!("{} Restarting pod: {} (namespace: {})", 
+        "[INFO]".cyan(), pod_name.bold(), ns.bright_black());
+    println!("{} This will delete the pod and let the controller recreate it", 
+        "[INFO]".yellow());
+    println!("{}", "-".repeat(100));
+    
+    let status = Command::new("kubectl")
+        .args(&["delete", "pod", &pod_name, "-n", &ns])
+        .status()?;
+    
+    if !status.success() {
+        anyhow::bail!("Failed to delete pod");
+    }
+    
+    println!("{} Pod deleted. Waiting for recreation...", "[SUCCESS]".green());
+    
+    Ok(())
+}
+
+fn show_events(pod_pattern: &str, namespace: Option<String>) -> Result<()> {
+    let (pod_name, ns) = find_pod(pod_pattern, namespace)?;
+    
+    println!("{} Events for pod: {} (namespace: {})", 
+        "[INFO]".cyan(), pod_name.bold(), ns.bright_black());
+    println!("{}", "-".repeat(100));
+    
+    let status = Command::new("kubectl")
+        .args(&[
+            "get", "events",
+            "-n", &ns,
+            "--field-selector", &format!("involvedObject.name={}", pod_name),
+            "--sort-by", ".lastTimestamp",
+        ])
+        .status()?;
+    
+    if !status.success() {
+        anyhow::bail!("Failed to get events");
     }
     
     Ok(())

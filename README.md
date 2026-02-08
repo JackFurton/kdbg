@@ -75,6 +75,18 @@ kdbg forward my-pod 8080 80  # localhost:8080 -> pod:80
 kdbg forward my-pod 3000 3000 -n my-namespace
 ```
 
+### Restart pod
+```bash
+kdbg restart my-pod  # Deletes pod, lets deployment recreate it
+kdbg restart my-pod -n production
+```
+
+### Show pod events
+```bash
+kdbg events my-pod  # Shows recent events for debugging
+kdbg events my-pod -n my-namespace
+```
+
 ## Fuzzy Matching
 
 All commands support partial pod names:
